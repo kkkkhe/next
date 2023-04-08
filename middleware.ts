@@ -1,10 +1,22 @@
-import {NextResponse} from "next/server";
-import type {NextRequest} from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
+export async function middleware(req:NextRequest) {
+    const { nextUrl, cookies } = req
+    //@ts-ignore
+    const userLocale = cookies.get('NEXT_LOCALE')
+    const defaultLocale = nextUrl.defaultLocale
+    const locale = nextUrl.locale
+    const pathname = nextUrl.pathname
 
-export async function middleware(request){
-    // const response = NextResponse.next()
-    // const locale = request.cookies.get('locale')?.value || 'uk'
-    console.log('lol')
-    return NextResponse.next()
-    // return NextResponse.redirect(new URL('/posts', request.url))
+    if(!userLocale){
+        const response = NextResponse.redirect(new URL(`/${locale || defaultLocale}${pathname}`, req.url))
+        //@ts-ignore
+
+        response.cookies.set('NEXT_LOCALE', locale || (defaultLocale as string))
+        return response
+    }
 }
+
+
+// const response = NextResponse.redirect(new URL(`/${locale || defaultLocale}${pathname}`, req.url))
+// response.cookies.set('NEXT_LOCALE', locale || (defaultLocale as string))
+// return response

@@ -1,9 +1,9 @@
-import {configureStore, createReducer, createSlice} from "@reduxjs/toolkit";
+import {configureStore} from "@reduxjs/toolkit";
 import {useMemo} from "react";
 import {reducer} from "@/src/entities/entity";
 
-let store;
-const initStore = (preloadedState) => {
+let store:any;
+const initStore = (preloadedState:any) => {
     return configureStore({
         preloadedState,
         reducer: {
@@ -12,7 +12,7 @@ const initStore = (preloadedState) => {
     })
 }
 
-export const initializeStore = (preloadedState) => {
+export const initializeStore = (preloadedState:any) => {
     let _store = store ?? initStore(preloadedState)
 
 
@@ -29,7 +29,7 @@ export const initializeStore = (preloadedState) => {
     return store
 }
 
-export const useStore = (initialState) => {
+export const useStore = (initialState:any) => {
     const store = useMemo(() => initializeStore(initialState), [initialState])
     return store
 }

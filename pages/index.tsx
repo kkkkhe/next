@@ -1,29 +1,75 @@
 import Head from 'next/head'
-import Image from 'next/image'
-import { Inter } from 'next/font/google'
-import Link from "next/link";
 import {GetServerSideProps} from "next";
-import {useSelector} from "react-redux";
-import {actions, selectors} from "@/src/entities/entity";
-import {initializeStore} from "@/src/app";
-import {useEffect, useState} from "react";
-import {serverSideTranslations} from "next-i18next/serverSideTranslations";
-import {useTranslation} from "next-i18next";
-import {useRouter} from "next/router";
+import {allSettled, createEffect, createEvent, createStore, fork, sample, serialize} from "effector";
+import {createGate, useGate, useStore, useUnit} from "effector-react";
+import {equals} from "patronum";
+const startApp = createEvent()
+import {createFinalFormModel} from "@/pages/model";
+const gate = createGate()
+const loginSuccess = createEvent()
+const $sessionUser = createStore<{name:string}>({name: ''})
 
-const inter = Inter({ subsets: ['latin'] })
+export const $loggedIn = createStore(false)
+    .on(loginSuccess, () => true)
+
+
+const formModel = (() => {
+    const initialize = createEvent()
+    const loginFx = createEffect(async ({name}) => {
+        const a = await new Promise((res) => {
+            return setTimeout(() => res({status: 200, name}), 1000)
+        })
+        return a
+    })
+
+    const $$form = createFinalFormModel(initialize)
+    //@ts-ignore
+    sample({
+        clock: $$form.submitTriggered,
+        filter: equals($loggedIn, false),
+        fn: (name) => ({name}),
+        target: loginFx
+    })
+    //@ts-ignore
+    sample({
+        clock: loginFx.doneData,
+        fn: (data) => ({
+            name: data.name
+        }),
+        target: $sessionUser
+    })
+    sample({
+        clock: loginFx.doneData,
+        target:loginSuccess
+    })
+    return {
+        submitTriggered: $$form.submitTriggered,
+        form: $$form.form,
+        initialize
+    }
+})()
+
+
+
+// sample({
+//     clock: startLoad,
+//     target: fetchPostsFx
+// })
+//@ts-ignore
+sample({
+    clock: gate.open,
+    target: formModel.initialize
+})
+formModel.initialize()
 
 export default function Home() {
-    const todos = useSelector(selectors.todos)
-    const {t} = useTranslation('common')
-    const router = useRouter()
-    const changeLocale = (newLocale: 'uk' | 'en') => {
-        const {pathname, query,asPath} = router
-        router.push({pathname, query}, asPath, {locale: newLocale})
+    const form = useUnit(formModel.form)
+    useGate(gate)
+    const data = useStore($sessionUser)
+    const handleSubmit = (e) => {
+        e.preventDefault()
+        form?.submit()
     }
-
-    const changeLocaleTo = router.locale == 'uk' ? 'en' : 'uk'
-
   return (
     <>
       <Head>
@@ -33,46 +79,35 @@ export default function Home() {
         <link rel="icon" href="/favicon.ico" />
       </Head>
       <main >
-        <Link href={'/posts'}>
-            go to posts
-        </Link>
-          <button onClick={() => changeLocale('uk')}>
-              {t('change-to-uk')}
-          </button>
-          <button onClick={() => changeLocale('en')}>
-              {t('change-to-en')}
-          </button>
-          <div>
-              {t('sample-text')}
-          </div>
-          <div>
-              {todos?.map((item) => {
-                  return (
-                      <div key={item.id}>
-                          {item.title}
-                      </div>
-                  )
-              })}
-          </div>
+          <div>my name is: {data.name}</div>
+          <form onSubmit={handleSubmit}>
+              <input type="text" name={'name'} placeholder={'name'} defaultValue={form?.getState().values.name} onChange={(e) => form?.change('name',e.target.value)}/>
+              <input type="text" name={'password'} defaultValue={form?.getState().values.password} onChange={(e) => form?.change('password', e.target.value)}/>
+                <button>
+                    Submit
+                </button>
+          </form>
       </main>
     </>
   )
 }
 
-export const getServerSideProps:GetServerSideProps = async (context) => {
+
+// export const getStaticProps = async () => {
+//     const data = await fetch('https://jsonplaceholder.typicode.com/todos')
+//     const result = await data.json()
+//     return {
+//         props: {result}
+//     }
+// }
+
+export const getServerSideProps:GetServerSideProps = async () => {
     // const store = config
-    const reduxStore = initializeStore({})
-    const data = await fetch('https://jsonplaceholder.typicode.com/todos')
-    const result = await data.json()
-    reduxStore.dispatch(actions.setTodos(result))
-    const initialState = reduxStore.getState()
-    const locale = context.locale || 'en'
+        const scope = fork()
+        await allSettled(startApp, {scope})
     return {
         props: {
-            ...(await serverSideTranslations(locale, [
-                'common',
-            ])),
-            initialState
+            initialState: serialize(scope)
         }
     }
 }
